@@ -75,7 +75,12 @@ codeyoung-trial-booking/
    cp .env.example .env
    ```
 
-4. Start the backend development server:
+4. Seed the 10 demo mentors:
+   ```bash
+   npm run seed
+   ```
+
+5. Start the backend development server:
    ```bash
    npm run dev
    # or

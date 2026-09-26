@@ -4,13 +4,12 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Response interceptor for structured error handling
 apiClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
@@ -26,4 +25,23 @@ apiClient.interceptors.response.use(
 
 export const checkHealth = async () => {
   return apiClient.get('/health');
+};
+
+export const fetchAvailableSlots = async (dateStr, timezone) => {
+  return apiClient.get('/slots/available', {
+    params: {
+      date: dateStr,
+      timezone: timezone,
+    },
+  });
+};
+
+export const submitBooking = async (bookingData) => {
+  return apiClient.post('/bookings', bookingData);
+};
+
+export default {
+  checkHealth,
+  fetchAvailableSlots,
+  submitBooking,
 };

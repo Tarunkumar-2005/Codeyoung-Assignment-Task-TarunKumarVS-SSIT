@@ -6,6 +6,7 @@ import { globalLimiter } from './middleware/rateLimiter.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import healthRoutes from './routes/healthRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
+import slotRoutes from './routes/slotRoutes.js';
 
 export const createApp = () => {
   const app = express();
@@ -31,6 +32,7 @@ export const createApp = () => {
   // Base API routes
   app.use('/api', healthRoutes);
   app.use('/api', bookingRoutes);
+  app.use('/api', slotRoutes);
 
   // Fallback 404 Handler
   app.use('*', (req, res) => {

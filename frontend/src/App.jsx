@@ -1,166 +1,167 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { checkHealth } from './services/api';
-import { DateTime } from 'luxon';
+import React, { useState } from 'react';
+import Header from './components/Header';
+import ProgressBar from './components/ProgressBar';
+import LandingHero from './components/LandingHero';
+import ParentDetailsStep from './components/ParentDetailsStep';
+import DateTimeStep from './components/DateTimeStep';
+import ReviewStep from './components/ReviewStep';
+import SuccessStep from './components/SuccessStep';
+import { detectBrowserTimezone } from './utils/timezones';
 
-function Dashboard() {
-  const [healthStatus, setHealthStatus] = useState({ loading: true, data: null, error: null });
-  const [userTimezone, setUserTimezone] = useState(DateTime.local().zoneName);
+export default function App() {
+  // Navigation step: 'landing' | 1 (details) | 2 (datetime) | 3 (review) | 'success'
+  const [currentStep, setCurrentStep] = useState('landing');
 
-  useEffect(() => {
-    const fetchHealth = async () => {
-      try {
-        const response = await checkHealth();
-        setHealthStatus({ loading: false, data: response.data, error: null });
-      } catch (err) {
-        setHealthStatus({ loading: false, data: null, error: err.message || 'Could not connect to backend' });
-      }
-    };
-    fetchHealth();
-  }, []);
+  // Timezone state
+  const [selectedTimezone, setSelectedTimezone] = useState(detectBrowserTimezone());
 
-  const nowLocal = DateTime.now().setZone(userTimezone).toFormat('cccc, LLL dd, yyyy · hh:mm:ss a ZZZZ');
-  const nowIst = DateTime.now().setZone('Asia/Kolkata').toFormat('cccc, LLL dd, yyyy · hh:mm:ss a ZZZZ');
+  // Form details state
+  const [formData, setFormData] = useState({
+    studentName: '',
+    studentGrade: 'Grade 3-5 (Ages 8-10)',
+    parentName: '',
+    parentEmail: '',
+    parentTimezone: selectedTimezone,
+  });
+
+  // Slot selection state
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+
+  // Booking confirmation payload from backend
+  const [bookingConfirmation, setBookingConfirmation] = useState(null);
+
+  // Keep parent timezone synced with global timezone changes
+  const handleTimezoneChange = (newTimezone) => {
+    setSelectedTimezone(newTimezone);
+    setFormData((prev) => ({ ...prev, parentTimezone: newTimezone }));
+    setSelectedSlot(null); // Reset slot choice if timezone changes
+  };
+
+  const handleUpdateFormData = (fields) => {
+    setFormData((prev) => ({ ...prev, ...fields }));
+  };
+
+  const handleBookingSuccess = (confirmationData) => {
+    setBookingConfirmation(confirmationData);
+    setCurrentStep('success');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleReset = () => {
+    setCurrentStep('landing');
+    setFormData({
+      studentName: '',
+      studentGrade: 'Grade 3-5 (Ages 8-10)',
+      parentName: '',
+      parentEmail: '',
+      parentTimezone: selectedTimezone,
+    });
+    setSelectedSlot(null);
+    setSelectedDate(null);
+    setBookingConfirmation(null);
+  };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      {/* Hero Header */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 rounded-3xl p-8 md:p-10 text-white shadow-xl shadow-blue-900/10 mb-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div>
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/15 text-white backdrop-blur-sm mb-3">
-              ⚡ Codeyoung Full Stack System
-            </span>
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-              Trial-Class Appointment Booking System
-            </h1>
-            <p className="text-blue-100 text-sm md:text-base mt-2 max-w-2xl">
-              Precision timezone coordination & mentor allocation engine connecting US/UK parents with educators in India.
-            </p>
-          </div>
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between font-sans antialiased">
+      {/* Navigation Header */}
+      <Header
+        selectedTimezone={selectedTimezone}
+        onTimezoneChange={handleTimezoneChange}
+        onReset={handleReset}
+      />
 
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 text-xs space-y-1.5 min-w-[240px]">
-            <div className="font-semibold text-blue-200 uppercase tracking-wider">System Clock</div>
-            <div className="text-white font-mono">{nowLocal}</div>
-            <div className="text-blue-200/80 font-mono text-[11px]">IST: {nowIst}</div>
-          </div>
-        </div>
-      </div>
+      {/* Main Content View */}
+      <main className="flex-1 py-8 px-4 sm:px-6">
+        {currentStep === 'landing' && (
+          <LandingHero
+            onStartBooking={() => {
+              setCurrentStep(1);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            selectedTimezone={selectedTimezone}
+          />
+        )}
 
-      {/* Grid Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {/* Backend Connectivity Status */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Backend API</span>
-            {healthStatus.loading ? (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                Checking...
-              </span>
-            ) : healthStatus.error ? (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">
-                Offline
-              </span>
-            ) : (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                Online (Port 5000)
-              </span>
+        {typeof currentStep === 'number' && (
+          <div className="max-w-5xl mx-auto">
+            {/* Step Progress Bar */}
+            <ProgressBar
+              currentStep={currentStep}
+              onStepClick={(stepId) => {
+                if (stepId < currentStep) {
+                  setCurrentStep(stepId);
+                }
+              }}
+            />
+
+            {/* Step 1: Parent & Student Details */}
+            {currentStep === 1 && (
+              <ParentDetailsStep
+                formData={formData}
+                onUpdate={handleUpdateFormData}
+                onNext={() => {
+                  setCurrentStep(2);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onBack={() => setCurrentStep('landing')}
+              />
+            )}
+
+            {/* Step 2: Date & Slot Selection */}
+            {currentStep === 2 && (
+              <DateTimeStep
+                selectedTimezone={selectedTimezone}
+                selectedDate={selectedDate}
+                selectedSlot={selectedSlot}
+                onSelectDate={setSelectedDate}
+                onSelectSlot={setSelectedSlot}
+                onNext={() => {
+                  setCurrentStep(3);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onBack={() => setCurrentStep(1)}
+              />
+            )}
+
+            {/* Step 3: Review & Final Confirmation */}
+            {currentStep === 3 && (
+              <ReviewStep
+                formData={formData}
+                selectedSlot={selectedSlot}
+                selectedTimezone={selectedTimezone}
+                onBookingSuccess={handleBookingSuccess}
+                onBack={() => setCurrentStep(2)}
+                onSelectAnotherSlot={() => setCurrentStep(2)}
+              />
             )}
           </div>
-          <p className="text-sm text-slate-600">
-            {healthStatus.loading
-              ? 'Attempting ping to /api/health...'
-              : healthStatus.error
-              ? `Error: ${healthStatus.error}`
-              : `Service: ${healthStatus.data?.service} (DB: ${healthStatus.data?.database})`}
-          </p>
-        </div>
+        )}
 
-        {/* Timezone Engine */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Timezone Engine</span>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-              Luxon IANA
-            </span>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-slate-500">Active Parent Zone:</label>
-            <select
-              value={userTimezone}
-              onChange={(e) => setUserTimezone(e.target.value)}
-              className="w-full text-xs font-medium bg-slate-50 border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              <option value="America/New_York">America/New_York (US Eastern)</option>
-              <option value="America/Chicago">America/Chicago (US Central)</option>
-              <option value="America/Denver">America/Denver (US Mountain)</option>
-              <option value="America/Los_Angeles">America/Los_Angeles (US Pacific)</option>
-              <option value="Europe/London">Europe/London (UK GMT/BST)</option>
-              <option value="Asia/Kolkata">Asia/Kolkata (India IST)</option>
-            </select>
+        {/* Step: Success Confirmation View */}
+        {currentStep === 'success' && bookingConfirmation && (
+          <SuccessStep
+            bookingConfirmation={bookingConfirmation}
+            onBookAnother={handleReset}
+          />
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-white border-t border-slate-200/80 py-8 px-4 text-center text-xs text-slate-500">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="font-medium text-slate-600">
+            © 2026 Codeyoung. Trial-Class Booking Platform.
+          </p>
+          <div className="flex items-center gap-4 text-slate-400">
+            <span>React + Tailwind CSS</span>
+            <span>·</span>
+            <span>Node.js + MongoDB</span>
+            <span>·</span>
+            <span>Luxon IANA Engine</span>
           </div>
         </div>
-
-        {/* Mentor Capacity Engine */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Mentors Fleet</span>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-              10 Mentors
-            </span>
-          </div>
-          <p className="text-sm text-slate-600">
-            Enforces strict max 2 demos/day per mentor in <span className="font-semibold text-slate-800">Asia/Kolkata</span>.
-          </p>
-        </div>
-      </div>
-
-      {/* Info Card */}
-      <div className="bg-slate-100/80 rounded-2xl p-6 border border-slate-200 text-slate-700 text-sm flex items-start gap-4">
-        <div className="text-2xl">💡</div>
-        <div>
-          <h3 className="font-semibold text-slate-900">Project Scaffolding Complete</h3>
-          <p className="mt-1 text-slate-600 leading-relaxed">
-            Layered Express architecture, Mongoose schemas, Luxon timezone service, and React/Tailwind frontend layers are linked and ready.
-          </p>
-        </div>
-      </div>
+      </footer>
     </div>
   );
 }
-
-function App() {
-  return (
-    <Router>
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
-        <header className="bg-white border-b border-slate-200/80 sticky top-0 z-50">
-          <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-2.5 font-bold text-slate-900 text-lg">
-              <span className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-base shadow-sm">
-                CY
-              </span>
-              Codeyoung Booking
-            </Link>
-            <nav className="flex items-center gap-4 text-sm font-medium text-slate-600">
-              <span className="text-xs px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 font-mono">
-                React + Express + Mongo
-              </span>
-            </nav>
-          </div>
-        </header>
-
-        <main className="flex-1">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-          </Routes>
-        </main>
-
-        <footer className="bg-white border-t border-slate-200/80 py-6 text-center text-xs text-slate-500">
-          Codeyoung Trial-Class Booking System · Full Stack Engineering Assessment
-        </footer>
-      </div>
-    </Router>
-  );
-}
-
-export default App;

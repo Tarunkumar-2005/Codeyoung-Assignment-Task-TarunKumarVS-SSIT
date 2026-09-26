@@ -104,7 +104,7 @@ describe('BookingService', () => {
       assert.equal(confirmation.parent.name, 'Sarah Miller');
       assert.equal(confirmation.parent.email, 'sarah.miller@example.com');
       assert.ok(confirmation.mentor.name);
-      assert.ok(confirmation.appointment.meetingLink.startsWith('https://meet.codeyoung.com/trial/cy-'));
+      assert.ok(confirmation.appointment.meetingLink.startsWith('https://demo.codeyoung.local/class/'));
 
       // Verify parent local time projection
       assert.equal(confirmation.parentLocalTime.time, '10:00 AM');

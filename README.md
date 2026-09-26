@@ -113,3 +113,36 @@ codeyoung-trial-booking/
    npm run dev
    ```
    *The application will be available at:* `http://localhost:5173`
+
+---
+
+## 🧪 Automated Testing Suite
+
+The project includes an end-to-end and unit testing suite covering **all 17 functional & resilience requirements**:
+
+1. **Normal booking:** Validates end-to-end appointment creation with dual projections and meeting link.
+2. **Invalid email:** Rejects malformed email inputs with `400 INVALID_EMAIL`.
+3. **Invalid timezone:** Rejects non-IANA timezones with `400 INVALID_TIMEZONE`.
+4. **Past appointment:** Rejects appointment timestamps in the past with `400 PAST_APPOINTMENT_TIME`.
+5. **Mentor working hours:** Evaluates mentor working hours strictly within `Asia/Kolkata`.
+6. **Mentor already booked:** Detects direct and partial UTC schedule overlaps.
+7. **Mentor reaches 2 classes/day:** Enforces daily demo cap strictly on the mentor's IST calendar date.
+8. **Multiple mentors available:** Load balances and prioritizes the least loaded mentor.
+9. **No mentors available:** Returns `409 NO_MENTOR_AVAILABLE` with same-day alternative slot recommendations.
+10. **Parent in America/New_York:** Handles EDT (UTC-4) and EST (UTC-5) conversions.
+11. **Parent in Europe/London:** Handles BST (UTC+1) and GMT (UTC+0) conversions.
+12. **Mentor in Asia/Kolkata:** Handles midnight boundary drift where parent evening is mentor next-day morning.
+13. **DST transition dates:** Accurate conversions across US & UK spring/fall clock changes.
+14. **Same-time concurrent bookings:** Compound unique database index and atomic retry candidate loop.
+15. **Meeting link generation:** Secure UUID-based room links without PII leakage (`https://demo.codeyoung.local/class/<uuid>`).
+16. **API validation:** HTTP-level payload validation, NoSQL injection stripping, and malformed ID handling.
+17. **Slot generation:** Dynamic 45-minute daytime slot availability matrix with capacity badges.
+
+### Running the Tests
+
+```bash
+cd backend
+npm test
+```
+*(All 51 unit, integration, concurrency, and timezone tests run against Node's built-in test runner).*
+

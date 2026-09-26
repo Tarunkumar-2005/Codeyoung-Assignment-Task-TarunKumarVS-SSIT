@@ -116,6 +116,7 @@ export default function App() {
                 selectedSlot={selectedSlot}
                 onSelectDate={setSelectedDate}
                 onSelectSlot={setSelectedSlot}
+                onTimezoneChange={handleTimezoneChange}
                 onNext={() => {
                   setCurrentStep(3);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -132,6 +133,7 @@ export default function App() {
                 selectedTimezone={selectedTimezone}
                 onBookingSuccess={handleBookingSuccess}
                 onBack={() => setCurrentStep(2)}
+                onSelectSlot={setSelectedSlot}
                 onSelectAnotherSlot={() => setCurrentStep(2)}
               />
             )}

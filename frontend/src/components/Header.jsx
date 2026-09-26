@@ -1,13 +1,16 @@
 import React from 'react';
-import { SUPPORTED_TIMEZONES } from '../utils/timezones';
+import { getAvailableTimezoneOptions } from '../utils/timezones';
 import { Globe, Clock, Sparkles } from 'lucide-react';
 import { DateTime } from 'luxon';
 
 export default function Header({ selectedTimezone, onTimezoneChange, onReset }) {
-  const currentLocalTime = DateTime.now().setZone(selectedTimezone).toFormat('hh:mm a ZZZZ');
+  const dtNow = DateTime.now().setZone(selectedTimezone);
+  const currentLocalTime = dtNow.toFormat('hh:mm:ss a');
+  const currentZoneAbbr = dtNow.toFormat('ZZZZ');
+  const timezoneOptions = getAvailableTimezoneOptions();
 
   return (
-    <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40">
+    <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 shadow-xs">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between py-3">
         {/* Brand Logo */}
         <button
@@ -28,22 +31,26 @@ export default function Header({ selectedTimezone, onTimezoneChange, onReset }) 
           </div>
         </button>
 
-        {/* Global Timezone Switcher */}
+        {/* Global Timezone Switcher with Clear Label */}
         <div className="flex items-center gap-3">
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
             <Clock className="w-3.5 h-3.5 text-blue-600" />
-            <span className="font-medium text-slate-700">{currentLocalTime}</span>
+            <span>Your Time:</span>
+            <span className="font-bold text-slate-900 font-mono">{currentLocalTime}</span>
+            <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-[10px]">
+              {currentZoneAbbr}
+            </span>
           </div>
 
-          <div className="relative flex items-center">
-            <Globe className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+          <div className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 border border-slate-200/90 rounded-xl px-2.5 py-1.5 transition-colors">
+            <Globe className="w-4 h-4 text-blue-600 shrink-0" />
             <select
               value={selectedTimezone}
               onChange={(e) => onTimezoneChange(e.target.value)}
-              className="pl-9 pr-8 py-2 text-xs font-medium text-slate-800 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors cursor-pointer appearance-none"
-              title="Select your local timezone"
+              className="text-xs font-semibold text-slate-800 bg-transparent focus:outline-none cursor-pointer pr-1"
+              title="Change your local timezone"
             >
-              {SUPPORTED_TIMEZONES.map((tz) => (
+              {timezoneOptions.map((tz) => (
                 <option key={tz.id} value={tz.id}>
                   {tz.label}
                 </option>

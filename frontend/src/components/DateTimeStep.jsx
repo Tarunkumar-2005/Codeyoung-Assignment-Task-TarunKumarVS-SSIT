@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { fetchAvailableSlots } from '../services/api';
+import { getAvailableTimezoneOptions, getTimezoneAbbreviation } from '../utils/timezones';
 import { DateTime } from 'luxon';
-import { Calendar, Clock, ArrowLeft, ArrowRight, AlertCircle, RefreshCw, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Calendar, Clock, ArrowLeft, ArrowRight, AlertCircle, RefreshCw, Globe, CheckCircle2 } from 'lucide-react';
 
 export default function DateTimeStep({
   selectedTimezone,
@@ -9,10 +10,12 @@ export default function DateTimeStep({
   selectedDate,
   onSelectDate,
   onSelectSlot,
+  onTimezoneChange,
   onNext,
   onBack,
 }) {
   const [slotsState, setSlotsState] = useState({ loading: true, slots: [], error: null });
+  const timezoneOptions = getAvailableTimezoneOptions();
 
   // Generate a 14-day booking calendar window starting tomorrow
   const upcomingDates = React.useMemo(() => {
@@ -25,13 +28,14 @@ export default function DateTimeStep({
         dayName: dt.toFormat('EEE'),
         dayNumber: dt.toFormat('dd'),
         monthName: dt.toFormat('LLL'),
-        fullLabel: dt.toFormat('cccc, LLL dd'),
+        fullLabel: dt.toFormat('cccc, LLL dd, yyyy'),
       });
     }
     return dates;
   }, [selectedTimezone]);
 
   const activeDateStr = selectedDate || upcomingDates[0]?.dateStr;
+  const currentZoneAbbr = getTimezoneAbbreviation(selectedTimezone);
 
   useEffect(() => {
     if (!selectedDate && upcomingDates[0]) {
@@ -73,19 +77,31 @@ export default function DateTimeStep({
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Step Header */}
+      {/* Step Header with Explicit Timezone Notice */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-slate-900">Select Date & Time Slot</h2>
-            <p className="text-sm text-slate-500 mt-1">
-              Choose a convenient slot. All times are displayed in your local timezone.
+            <p className="text-sm font-semibold text-blue-600 mt-1 flex items-center gap-1.5">
+              <Globe className="w-4 h-4 text-blue-600" />
+              Times shown in <span className="underline decoration-blue-400 font-bold">{selectedTimezone}</span> ({currentZoneAbbr})
             </p>
           </div>
 
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-100 text-xs font-semibold text-blue-700">
-            <Clock className="w-4 h-4 text-blue-600" />
-            <span>Zone: {selectedTimezone}</span>
+          {/* Timezone Selector Helper */}
+          <div className="flex items-center gap-2 p-2 rounded-2xl bg-slate-50 border border-slate-200">
+            <span className="text-xs text-slate-500 font-medium pl-1">Zone:</span>
+            <select
+              value={selectedTimezone}
+              onChange={(e) => onTimezoneChange(e.target.value)}
+              className="text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
+            >
+              {timezoneOptions.map((tz) => (
+                <option key={tz.id} value={tz.id}>
+                  {tz.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -103,9 +119,9 @@ export default function DateTimeStep({
                   type="button"
                   onClick={() => {
                     onSelectDate(item.dateStr);
-                    onSelectSlot(null); // Reset slot choice when changing date
+                    onSelectSlot(null);
                   }}
-                  className={`flex flex-col items-center justify-center min-w-[72px] py-3.5 px-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                  className={`flex flex-col items-center justify-center min-w-[76px] py-3.5 px-3 rounded-2xl border text-center transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/25 scale-102 font-bold'
                       : 'bg-slate-50 hover:bg-slate-100 border-slate-200/80 text-slate-700 font-medium'
@@ -123,7 +139,7 @@ export default function DateTimeStep({
 
       {/* Slots Section */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
           <div>
             <h3 className="text-lg font-bold text-slate-900">
               Available Slots for{' '}
@@ -131,13 +147,15 @@ export default function DateTimeStep({
                 {upcomingDates.find((d) => d.dateStr === activeDateStr)?.fullLabel || activeDateStr}
               </span>
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">45-minute 1-on-1 trial class</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Times displayed in <strong className="text-slate-800">{selectedTimezone} ({currentZoneAbbr})</strong> · 45-min demo class
+            </p>
           </div>
 
           <button
             type="button"
             onClick={() => onSelectDate(activeDateStr)}
-            className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 p-2 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer self-start sm:self-auto"
             title="Refresh availability"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${slotsState.loading ? 'animate-spin text-blue-600' : ''}`} />
@@ -149,7 +167,7 @@ export default function DateTimeStep({
         {slotsState.loading && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 py-6">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div key={i} className="h-20 bg-slate-100 rounded-2xl animate-pulse" />
+              <div key={i} className="h-22 bg-slate-100 rounded-2xl animate-pulse" />
             ))}
           </div>
         )}
@@ -165,17 +183,17 @@ export default function DateTimeStep({
           </div>
         )}
 
-        {/* Slots Grid */}
+        {/* Slots Grid with Unambiguous Timezone Context on Every Button */}
         {!slotsState.loading && !slotsState.error && (
           <>
             {slotsState.slots.length === 0 ? (
               <div className="py-12 text-center text-slate-400">
                 <Calendar className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                <p className="font-medium text-sm">No slots available for this date.</p>
-                <p className="text-xs mt-1">Please select another date above.</p>
+                <p className="font-medium text-sm text-slate-600">No slots available for this date in your timezone.</p>
+                <p className="text-xs mt-1 text-slate-400">Please select another date above or check alternative hours.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {slotsState.slots.map((slot) => {
                   const isSelected = selectedSlot?.startTimeUTC === slot.startTimeUTC;
                   const isAvailable = slot.isAvailable;
@@ -186,39 +204,49 @@ export default function DateTimeStep({
                       type="button"
                       disabled={!isAvailable}
                       onClick={() => onSelectSlot(slot)}
-                      className={`relative p-4 rounded-2xl border text-left transition-all duration-200 flex flex-col justify-between min-h-[96px] cursor-pointer ${
+                      className={`relative p-4 rounded-2xl border text-left transition-all duration-200 flex flex-col justify-between min-h-[104px] cursor-pointer ${
                         isSelected
-                          ? 'bg-blue-50/90 border-blue-600 ring-2 ring-blue-500/20 shadow-md scale-102'
+                          ? 'bg-blue-50/95 border-blue-600 ring-2 ring-blue-500/20 shadow-md scale-102'
                           : isAvailable
-                          ? 'bg-white hover:bg-slate-50 border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
-                          : 'bg-slate-50/80 border-slate-200/60 opacity-50 cursor-not-allowed'
+                          ? 'bg-white hover:bg-slate-50 border-slate-200/90 hover:border-slate-300 hover:shadow-sm'
+                          : 'bg-slate-50/80 border-slate-200/50 opacity-45 cursor-not-allowed'
                       }`}
                     >
-                      <div className="flex items-center justify-between w-full">
-                        <span className={`text-base font-bold ${isSelected ? 'text-blue-900' : 'text-slate-800'}`}>
-                          {slot.localTime}
-                        </span>
-                        {isSelected && <CheckCircle2 className="w-4 h-4 text-blue-600 fill-blue-100" />}
+                      <div className="flex items-start justify-between w-full">
+                        <div>
+                          {/* Unambiguous Local Time with DST code */}
+                          <div className={`text-base font-extrabold flex items-center gap-1.5 ${isSelected ? 'text-blue-950' : 'text-slate-900'}`}>
+                            {slot.localTime}
+                            <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                              {currentZoneAbbr}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                            45 min · 1-on-1
+                          </div>
+                        </div>
+
+                        {isSelected && <CheckCircle2 className="w-5 h-5 text-blue-600 fill-blue-100 shrink-0" />}
                       </div>
 
-                      <div className="mt-2 flex items-center justify-between">
+                      <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
                         {isAvailable ? (
                           <span
-                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                            className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                               isSelected
                                 ? 'bg-blue-600 text-white'
-                                : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-200/70'
                             }`}
                           >
-                            {slot.availableMentorsCount} {slot.availableMentorsCount === 1 ? 'mentor' : 'mentors'}
+                            {slot.availableMentorsCount} {slot.availableMentorsCount === 1 ? 'mentor free' : 'mentors free'}
                           </span>
                         ) : (
                           <span className="text-[10px] font-medium text-slate-400 bg-slate-200/60 px-2 py-0.5 rounded-full">
-                            Unavailable
+                            Outside Mentor Hours
                           </span>
                         )}
 
-                        <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
+                        <span className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded font-medium">
                           {slot.mentorTimeIST}
                         </span>
                       </div>
@@ -230,17 +258,20 @@ export default function DateTimeStep({
           </>
         )}
 
-        {/* Selected Slot Notice */}
+        {/* Selected Slot Callout */}
         {selectedSlot && (
-          <div className="mt-6 p-4 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-between">
+          <div className="mt-6 p-4 rounded-2xl bg-blue-50/90 border border-blue-200 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold">
                 ✓
               </div>
               <div>
-                <p className="text-xs font-bold text-blue-900">Selected Appointment Slot:</p>
-                <p className="text-sm font-semibold text-blue-800">
-                  {selectedSlot.localTimeFormatted} · {upcomingDates.find((d) => d.dateStr === activeDateStr)?.fullLabel}
+                <p className="text-xs font-bold text-blue-900 uppercase tracking-wider">Confirmed Slot Choice:</p>
+                <p className="text-sm font-bold text-blue-950">
+                  {selectedSlot.localTime} {currentZoneAbbr} ({selectedTimezone}) · {upcomingDates.find((d) => d.dateStr === activeDateStr)?.fullLabel}
+                </p>
+                <p className="text-xs text-blue-700">
+                  Mentor in India will join at {selectedSlot.mentorTimeIST}
                 </p>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle, Copy, Check, ExternalLink, Calendar, Clock, User, Video, ShieldCheck, RefreshCw } from 'lucide-react';
+import { CheckCircle, Copy, Check, ExternalLink, Calendar, Clock, User, Video, ShieldCheck, RefreshCw, Globe } from 'lucide-react';
 
 export default function SuccessStep({ bookingConfirmation, onBookAnother }) {
   const [copied, setCopied] = useState(false);
@@ -20,6 +20,10 @@ export default function SuccessStep({ bookingConfirmation, onBookAnother }) {
       setTimeout(() => setCopied(false), 2500);
     }
   };
+
+  // Extract clean unambiguous time strings (e.g. "10:00 AM EDT" and "07:30 PM IST")
+  const parentTimeString = `${parentLocalTime?.time} ${parentLocalTime?.zoneAbbreviation || ''}`.trim();
+  const mentorTimeString = `${mentorLocalTime?.time} IST`.trim();
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -44,37 +48,43 @@ export default function SuccessStep({ bookingConfirmation, onBookAnother }) {
           <span className="font-bold text-slate-900">{bookingId}</span>
         </div>
 
-        {/* Dual Coordinated Time Presentation */}
+        {/* Exact Coordinated Time Presentation (Parent Time + Mentor Time) */}
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
           {/* Parent Time Card */}
-          <div className="bg-blue-50/80 p-5 rounded-2xl border border-blue-200/80 space-y-2">
+          <div className="bg-blue-50/90 p-5 rounded-2xl border border-blue-200/90 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-blue-800">Your Local Time</span>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-200/80 text-blue-900">
-                {parentLocalTime?.zoneAbbreviation || parentLocalTime?.timezone}
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-800">Parent Time</span>
+              <span className="text-[11px] font-extrabold px-2 py-0.5 rounded bg-blue-200 text-blue-950 font-mono">
+                {parentLocalTime?.zoneAbbreviation}
               </span>
             </div>
-            <div className="text-lg font-bold text-blue-950">
-              {parentLocalTime?.time}
+            <div className="text-2xl font-black text-blue-950 font-mono">
+              {parentTimeString}
             </div>
-            <div className="text-xs text-blue-800 font-medium">
-              {parentLocalTime?.date} · {parentLocalTime?.zoneNameLong}
+            <div className="text-xs text-blue-800 font-medium pt-1 border-t border-blue-200/60">
+              📅 {parentLocalTime?.date} · {parentLocalTime?.timezone}
+            </div>
+            <div className="text-[11px] text-blue-700/80 font-medium">
+              {parentLocalTime?.zoneNameLong}
             </div>
           </div>
 
           {/* Mentor Time Card */}
-          <div className="bg-purple-50/80 p-5 rounded-2xl border border-purple-200/80 space-y-2">
+          <div className="bg-purple-50/90 p-5 rounded-2xl border border-purple-200/90 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-purple-800">Mentor's Time (India)</span>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-purple-200/80 text-purple-900">
-                IST (UTC+5:30)
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-800">Mentor Time</span>
+              <span className="text-[11px] font-extrabold px-2 py-0.5 rounded bg-purple-200 text-purple-950 font-mono">
+                IST
               </span>
             </div>
-            <div className="text-lg font-bold text-purple-950">
-              {mentorLocalTime?.time}
+            <div className="text-2xl font-black text-purple-950 font-mono">
+              {mentorTimeString}
             </div>
-            <div className="text-xs text-purple-800 font-medium">
-              {mentorLocalTime?.date} · India Standard Time
+            <div className="text-xs text-purple-800 font-medium pt-1 border-t border-purple-200/60">
+              📅 {mentorLocalTime?.date} · Asia/Kolkata
+            </div>
+            <div className="text-[11px] text-purple-700/80 font-medium">
+              India Standard Time (UTC+5:30)
             </div>
           </div>
         </div>

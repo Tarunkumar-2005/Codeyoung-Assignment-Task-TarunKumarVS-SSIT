@@ -3,6 +3,7 @@ import timezoneService from './timezoneService.js';
 import mentorAvailabilityService from './mentorAvailabilityService.js';
 import parentRepository from '../repositories/parentRepository.js';
 import bookingRepository from '../repositories/bookingRepository.js';
+import slotService from './slotService.js';
 import { generateMeetingLink } from '../utils/meetingLink.js';
 import { config } from '../config/env.js';
 
@@ -18,14 +19,7 @@ const isValidEmail = (email) => {
 };
 
 /**
- * Creates a trial class booking with concurrency resilience.
- * 
- * Race Condition Safeguards:
- * 1. Database-level partial compound unique index ({ mentorId: 1, startTimeUTC: 1 } WHERE status='CONFIRMED').
- * 2. Multi-candidate fallback loop: If a mentor assignment collides concurrently (E11000), 
- *    the engine automatically attempts the next eligible candidate from the available mentors pool.
- * 3. Atomic daily limit re-check before write: Prevents concurrent requests from exceeding 
- *    the mentor's 2 demos/day limit on that IST calendar date.
+ * Creates a trial class booking with concurrency resilience and friendly alternative slot suggestions.
  * 
  * @param {Object} payload - { parent: { name, email, timezone }, startTime, timezone }
  * @returns {Promise<Object>} Confirmation payload
@@ -109,20 +103,36 @@ export const createTrialBooking = async (payload) => {
   // 6. Find initial eligible mentors
   const candidateMentors = await mentorAvailabilityService.getAvailableMentors(startTimeUTC, endTimeUTC);
 
+  // Helper to fetch same-day alternative slots if no mentor is available
+  const getSameDayAlternatives = async () => {
+    try {
+      const parentDate = timezoneService.formatForUser(startTimeUTC, timezone).date;
+      const daySlots = await slotService.getAvailableSlotsForDate(parentDate, timezone);
+      return daySlots
+        .filter((s) => s.isAvailable && s.startTimeUTC !== startTimeUTC)
+        .slice(0, 4);
+    } catch (e) {
+      return [];
+    }
+  };
+
   if (!candidateMentors || candidateMentors.length === 0) {
-    const err = new Error(
-      'No mentors are currently available for the selected slot. All mentors are either outside their working hours, already booked, or have reached their daily limit of 2 trial classes.'
-    );
+    const alternatives = await getSameDayAlternatives();
+    const err = new Error('No mentor is available for this time.');
     err.statusCode = 409;
     err.errorCode = 'NO_MENTOR_AVAILABLE';
     err.details = {
+      message: 'No mentor is available for this time.',
       requestedSlot: {
         startTimeUTC,
         endTimeUTC,
         parentLocalTime: timezoneService.formatForUser(startTimeUTC, timezone).fullFormatted,
         parentTimezone: timezone,
       },
-      suggestion: 'Please choose an alternative time slot or select a different date.',
+      suggestedAlternativeSlots: alternatives,
+      suggestion: alternatives.length > 0 
+        ? 'Please select one of the available alternative slots below on the same day.' 
+        : 'Please select an alternative date.',
     };
     throw err;
   }
@@ -145,21 +155,17 @@ export const createTrialBooking = async (payload) => {
     const mentorDateIST = candidate.mentorDateIST;
     const maxDemos = mentor.maxDailyDemos || config.maxDailyDemosPerMentor || 2;
 
-    // Fresh atomic pre-check: verify mentor has not reached daily limit due to a racing concurrent booking
     const currentDailyCount = await bookingRepository.countMentorDailyBookings(mentorId, mentorDateIST);
     if (currentDailyCount >= maxDemos) {
-      // Mentor reached quota during this request's execution window -> try next candidate
       continue;
     }
 
-    // Fresh pre-check: verify mentor was not just booked for an overlapping time
     const hasConflict = await mentorAvailabilityService.hasScheduleConflict(
       mentorId,
       startTimeUTC,
       endTimeUTC
     );
     if (hasConflict) {
-      // Mentor was just booked for overlapping time -> try next candidate
       continue;
     }
 
@@ -178,36 +184,36 @@ export const createTrialBooking = async (payload) => {
         status: 'CONFIRMED',
       });
 
-      // Successfully acquired mentor and persisted booking
       assignedBooking = newBooking;
       assignedMentor = mentor;
       assignedMentorDateIST = mentorDateIST;
       break;
     } catch (dbError) {
       if (dbError.code === 11000) {
-        // Compound unique index caught a collision: another concurrent request just won this mentor
-        // Gracefully continue loop to claim next eligible candidate
         continue;
       }
       throw dbError;
     }
   }
 
-  // If all candidate mentors were consumed or collided concurrently
+  // If all candidate mentors collided or were consumed concurrently
   if (!assignedBooking) {
-    const err = new Error(
-      'All available mentors for this time slot were booked during concurrent requests. Please select another slot.'
-    );
+    const alternatives = await getSameDayAlternatives();
+    const err = new Error('No mentor is available for this time.');
     err.statusCode = 409;
     err.errorCode = 'NO_MENTOR_AVAILABLE';
     err.details = {
+      message: 'No mentor is available for this time.',
       requestedSlot: {
         startTimeUTC,
         endTimeUTC,
         parentLocalTime: timezoneService.formatForUser(startTimeUTC, timezone).fullFormatted,
         parentTimezone: timezone,
       },
-      suggestion: 'Please try another time slot.',
+      suggestedAlternativeSlots: alternatives,
+      suggestion: alternatives.length > 0 
+        ? 'Please select one of the available alternative slots below on the same day.' 
+        : 'Please select an alternative date.',
     };
     throw err;
   }

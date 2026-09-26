@@ -18,7 +18,14 @@ const isValidEmail = (email) => {
 };
 
 /**
- * Creates a trial class booking.
+ * Creates a trial class booking with concurrency resilience.
+ * 
+ * Race Condition Safeguards:
+ * 1. Database-level partial compound unique index ({ mentorId: 1, startTimeUTC: 1 } WHERE status='CONFIRMED').
+ * 2. Multi-candidate fallback loop: If a mentor assignment collides concurrently (E11000), 
+ *    the engine automatically attempts the next eligible candidate from the available mentors pool.
+ * 3. Atomic daily limit re-check before write: Prevents concurrent requests from exceeding 
+ *    the mentor's 2 demos/day limit on that IST calendar date.
  * 
  * @param {Object} payload - { parent: { name, email, timezone }, startTime, timezone }
  * @returns {Promise<Object>} Confirmation payload
@@ -79,7 +86,6 @@ export const createTrialBooking = async (payload) => {
   // 4 & 5. Convert local time to UTC
   let startTimeUTC;
   if (typeof startTime === 'string' && startTime.endsWith('Z')) {
-    // If incoming string is already an explicit UTC ISO string
     startTimeUTC = startTime;
   } else {
     startTimeUTC = timezoneService.localTimeToUTC(startTime, timezone);
@@ -100,10 +106,10 @@ export const createTrialBooking = async (payload) => {
   const endDt = DateTime.fromISO(startTimeUTC, { zone: 'utc' }).plus({ minutes: durationMinutes });
   const endTimeUTC = endDt.toUTC().toISO();
 
-  // 6, 7, 8, 9. Find available mentors matching working hours, no overlaps, and < 2 daily demos
-  const availableMentors = await mentorAvailabilityService.getAvailableMentors(startTimeUTC, endTimeUTC);
+  // 6. Find initial eligible mentors
+  const candidateMentors = await mentorAvailabilityService.getAvailableMentors(startTimeUTC, endTimeUTC);
 
-  if (!availableMentors || availableMentors.length === 0) {
+  if (!candidateMentors || candidateMentors.length === 0) {
     const err = new Error(
       'No mentors are currently available for the selected slot. All mentors are either outside their working hours, already booked, or have reached their daily limit of 2 trial classes.'
     );
@@ -121,53 +127,98 @@ export const createTrialBooking = async (payload) => {
     throw err;
   }
 
-  // Select the least-loaded available mentor (first candidate after sorting)
-  const selectedCandidate = availableMentors[0];
-  const selectedMentor = selectedCandidate.mentor;
-  const mentorDateIST = selectedCandidate.mentorDateIST;
-
-  // 10. Upsert Parent record
+  // Upsert Parent record
   const parentDoc = await parentRepository.findOrCreateParent({
     name: parentName,
     email: parentEmail,
     timezone,
   });
 
-  // 11. Generate unique meeting link
-  const meetingLink = generateMeetingLink();
+  // 7, 8, 9, 10. Concurrency-safe candidate allocation loop
+  let assignedBooking = null;
+  let assignedMentor = null;
+  let assignedMentorDateIST = null;
 
-  // Create booking record
-  let bookingDoc;
-  try {
-    bookingDoc = await bookingRepository.createBooking({
-      parentId: parentDoc._id,
-      mentorId: selectedMentor._id,
-      startTimeUTC: new Date(startTimeUTC),
-      endTimeUTC: new Date(endTimeUTC),
-      parentTimezone: timezone,
-      mentorTimezone: selectedMentor.timezone || 'Asia/Kolkata',
-      mentorDateIST,
-      meetingLink,
-      status: 'CONFIRMED',
-    });
-  } catch (dbError) {
-    // Catch MongoDB duplicate key error (code 11000) for concurrency collision
-    if (dbError.code === 11000) {
-      const err = new Error('The selected mentor was just booked by another parent. Please try booking again.');
-      err.statusCode = 409;
-      err.errorCode = 'CONCURRENT_BOOKING_COLLISION';
-      throw err;
+  for (const candidate of candidateMentors) {
+    const mentor = candidate.mentor;
+    const mentorId = mentor._id;
+    const mentorDateIST = candidate.mentorDateIST;
+    const maxDemos = mentor.maxDailyDemos || config.maxDailyDemosPerMentor || 2;
+
+    // Fresh atomic pre-check: verify mentor has not reached daily limit due to a racing concurrent booking
+    const currentDailyCount = await bookingRepository.countMentorDailyBookings(mentorId, mentorDateIST);
+    if (currentDailyCount >= maxDemos) {
+      // Mentor reached quota during this request's execution window -> try next candidate
+      continue;
     }
-    throw dbError;
+
+    // Fresh pre-check: verify mentor was not just booked for an overlapping time
+    const hasConflict = await mentorAvailabilityService.hasScheduleConflict(
+      mentorId,
+      startTimeUTC,
+      endTimeUTC
+    );
+    if (hasConflict) {
+      // Mentor was just booked for overlapping time -> try next candidate
+      continue;
+    }
+
+    const meetingLink = generateMeetingLink();
+
+    try {
+      const newBooking = await bookingRepository.createBooking({
+        parentId: parentDoc._id,
+        mentorId: mentor._id,
+        startTimeUTC: new Date(startTimeUTC),
+        endTimeUTC: new Date(endTimeUTC),
+        parentTimezone: timezone,
+        mentorTimezone: mentor.timezone || 'Asia/Kolkata',
+        mentorDateIST,
+        meetingLink,
+        status: 'CONFIRMED',
+      });
+
+      // Successfully acquired mentor and persisted booking
+      assignedBooking = newBooking;
+      assignedMentor = mentor;
+      assignedMentorDateIST = mentorDateIST;
+      break;
+    } catch (dbError) {
+      if (dbError.code === 11000) {
+        // Compound unique index caught a collision: another concurrent request just won this mentor
+        // Gracefully continue loop to claim next eligible candidate
+        continue;
+      }
+      throw dbError;
+    }
   }
 
-  // 12. Build structured confirmation response
+  // If all candidate mentors were consumed or collided concurrently
+  if (!assignedBooking) {
+    const err = new Error(
+      'All available mentors for this time slot were booked during concurrent requests. Please select another slot.'
+    );
+    err.statusCode = 409;
+    err.errorCode = 'NO_MENTOR_AVAILABLE';
+    err.details = {
+      requestedSlot: {
+        startTimeUTC,
+        endTimeUTC,
+        parentLocalTime: timezoneService.formatForUser(startTimeUTC, timezone).fullFormatted,
+        parentTimezone: timezone,
+      },
+      suggestion: 'Please try another time slot.',
+    };
+    throw err;
+  }
+
+  // Build structured confirmation response
   const parentProjection = timezoneService.formatForUser(startTimeUTC, timezone);
-  const mentorProjection = timezoneService.formatForUser(startTimeUTC, selectedMentor.timezone || 'Asia/Kolkata');
+  const mentorProjection = timezoneService.formatForUser(startTimeUTC, assignedMentor.timezone || 'Asia/Kolkata');
 
   return {
-    bookingId: bookingDoc._id.toString(),
-    status: bookingDoc.status,
+    bookingId: assignedBooking._id.toString(),
+    status: assignedBooking.status,
     parent: {
       id: parentDoc._id.toString(),
       name: parentDoc.name,
@@ -175,16 +226,16 @@ export const createTrialBooking = async (payload) => {
       timezone: parentDoc.timezone,
     },
     mentor: {
-      id: selectedMentor._id.toString(),
-      name: selectedMentor.name,
-      email: selectedMentor.email,
-      timezone: selectedMentor.timezone || 'Asia/Kolkata',
+      id: assignedMentor._id.toString(),
+      name: assignedMentor.name,
+      email: assignedMentor.email,
+      timezone: assignedMentor.timezone || 'Asia/Kolkata',
     },
     appointment: {
       startTimeUTC,
       endTimeUTC,
       durationMinutes,
-      meetingLink,
+      meetingLink: assignedBooking.meetingLink,
     },
     parentLocalTime: {
       timezone: timezone,
@@ -196,18 +247,18 @@ export const createTrialBooking = async (payload) => {
       isDST: parentProjection.isDST,
     },
     mentorLocalTime: {
-      timezone: selectedMentor.timezone || 'Asia/Kolkata',
+      timezone: assignedMentor.timezone || 'Asia/Kolkata',
       date: mentorProjection.date,
       time: mentorProjection.time,
       formatted: mentorProjection.fullFormatted,
       zoneAbbreviation: mentorProjection.zoneAbbreviation,
       zoneNameLong: mentorProjection.zoneNameLong,
       isDST: mentorProjection.isDST,
-      mentorDateIST: mentorDateIST,
+      mentorDateIST: assignedMentorDateIST,
     },
     timezoneInformation: {
       parentTimezone: timezone,
-      mentorTimezone: selectedMentor.timezone || 'Asia/Kolkata',
+      mentorTimezone: assignedMentor.timezone || 'Asia/Kolkata',
       parentUtcOffsetMinutes: parentProjection.offsetMinutes,
       mentorUtcOffsetMinutes: mentorProjection.offsetMinutes,
     },

@@ -15,7 +15,7 @@ export default function App() {
   // View mode: 'parent' | 'mentor'
   const [viewMode, setViewMode] = useState('parent');
 
-  // Timezone state
+  // Timezone-state
   const [selectedTimezone, setSelectedTimezone] = useState(detectBrowserTimezone());
 
   // Form details state
@@ -27,7 +27,7 @@ export default function App() {
     parentTimezone: selectedTimezone,
   });
 
-  // Slot selection state
+  // Slot-selection state
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null);
 

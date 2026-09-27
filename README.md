@@ -1,7 +1,7 @@
 # Codeyoung Trial-Class Appointment Booking System
 
 A production-grade full-stack trial-class appointment booking platform engineered to seamlessly coordinate parents across US and UK time zones with certified mentor educators in India (`Asia/Kolkata`), featuring dynamic IANA Daylight Saving Time (DST) handling, automated mentor load balancing, mentor and parent daily quota enforcement (max 2 classes/day), and transactional double-booking protection.
-
+ 
 ---
 
 ## 📸 Application Screenshots

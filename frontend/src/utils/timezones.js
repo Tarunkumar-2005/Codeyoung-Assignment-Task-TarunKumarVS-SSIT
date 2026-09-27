@@ -70,9 +70,16 @@ export const formatTimeWithZoneBadge = (timeOrUtc, timezone) => {
  * Returns formatted abbreviation for a timezone at the current moment or specific date.
  * e.g., "EDT", "EST", "BST", "GMT", "IST"
  */
-export const getTimezoneAbbreviation = (timezone, dateObj = null) => {
+export const getTimezoneAbbreviation = (timezone, dateOrStr = null) => {
   try {
-    const dt = dateObj ? DateTime.fromJSDate(dateObj).setZone(timezone) : DateTime.now().setZone(timezone);
+    let dt;
+    if (typeof dateOrStr === 'string' && dateOrStr.length >= 10) {
+      dt = DateTime.fromISO(dateOrStr.includes('T') ? dateOrStr : `${dateOrStr}T12:00:00`, { zone: timezone });
+    } else if (dateOrStr instanceof Date) {
+      dt = DateTime.fromJSDate(dateOrStr).setZone(timezone);
+    } else {
+      dt = DateTime.now().setZone(timezone);
+    }
     return dt.toFormat('ZZZZ');
   } catch (e) {
     return timezone;

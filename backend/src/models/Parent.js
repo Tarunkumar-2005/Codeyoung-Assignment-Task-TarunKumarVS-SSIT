@@ -22,7 +22,12 @@ const ParentSchema = new mongoose.Schema(
       required: [true, 'Parent timezone is required'],
       trim: true,
     },
+    dailyBookings: {
+      type: Object,
+      default: {},
+    },
   },
+
   {
     timestamps: true,
     toJSON: {

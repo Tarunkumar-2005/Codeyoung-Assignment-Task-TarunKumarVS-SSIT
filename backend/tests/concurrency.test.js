@@ -24,8 +24,14 @@ describe('Concurrency & Race Condition Mitigation Tests', () => {
   });
 
   it('Scenario 1: Multiple concurrent booking requests for the exact same time slot', async () => {
+    // 0. Clean all collections for strict concurrency isolation
+    await Booking.deleteMany({});
+    await Parent.deleteMany({});
+    await Mentor.deleteMany({});
+
     // 1. Seed exactly 2 mentors available for the slot
     const mentors = await Mentor.create([
+
       {
         name: 'Concurrent Mentor Alpha',
         email: 'alpha.concurrent@codeyoung.com',

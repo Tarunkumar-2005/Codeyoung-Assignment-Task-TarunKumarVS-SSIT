@@ -45,6 +45,7 @@ export const handleGetMentors = async (req, res, next) => {
 export const handleGetMentorById = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { date } = req.query;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       const err = new Error(`Invalid mentor ID format: '${id}'. Must be a valid 24-character hex string.`);
@@ -61,14 +62,28 @@ export const handleGetMentorById = async (req, res, next) => {
       throw err;
     }
 
+    const queryDateIST = date || timezoneService.getMentorDateIST(new Date().toISOString());
+    const bookings = await bookingRepository.findBookingsByMentor(mentor._id, date ? queryDateIST : undefined);
+    const activeDemos = await bookingRepository.countMentorDailyBookings(mentor._id, queryDateIST);
+
+    const mentorData = mentor.toObject ? mentor.toObject() : mentor;
+
     return res.status(200).json({
       success: true,
-      data: mentor,
+      data: {
+        ...mentorData,
+        queryDateIST,
+        demosScheduledToday: activeDemos,
+        remainingDemosToday: Math.max(0, (mentor.maxDailyDemos || 2) - activeDemos),
+        isFullyBooked: activeDemos >= (mentor.maxDailyDemos || 2),
+        bookings,
+      },
     });
   } catch (err) {
     return next(err);
   }
 };
+
 
 export default {
   handleGetMentors,

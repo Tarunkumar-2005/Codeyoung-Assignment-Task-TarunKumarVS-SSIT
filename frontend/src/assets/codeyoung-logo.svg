@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 110" fill="none" className="h-10 w-auto">
+  <!-- Clean Crisp White Background -->
+  <rect width="400" height="110" fill="#FFFFFF"/>
+  
+  <!-- Codeyoung Icon Mark -->
+  <g transform="translate(16, 12)">
+    <!-- 1. Top-Left Tilted Yellow L-Shape -->
+    <path 
+      d="M18 2 L38 6 L29 52 L58 58 L54 77 L3 67 L18 2 Z" 
+      fill="#FFE500" 
+    />
+    
+    <!-- 2. Bottom-Right Horizontal & Vertical Orange Block -->
+    <path 
+      d="M10 77 H62 V77 H62 V42 H84 V98 H10 V77 Z" 
+      fill="#FFA700" 
+    />
+
+    <!-- 3. Overlapping Intersection Shape (Warm Orange-Red) -->
+    <path 
+      d="M58 52 L78 56 L75 77 L54 77 Z" 
+      fill="#FF5722" 
+      opacity="0.95"
+    />
+  </g>
+
+  <!-- Codeyoung Wordmark -->
+  <text 
+    x="118" 
+    y="70" 
+    fill="#000000" 
+    font-family="'Plus Jakarta Sans', 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" 
+    font-size="46" 
+    font-weight="900" 
+    letter-spacing="-0.03em"
+  >Codeyoung</text>
+</svg>

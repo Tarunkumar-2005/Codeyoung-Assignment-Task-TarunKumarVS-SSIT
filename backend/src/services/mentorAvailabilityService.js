@@ -20,12 +20,31 @@ export const isWithinMentorWorkingHours = (mentor, startTimeUTC, endTimeUTC) => 
   const [startHour, startMin] = (mentor.workingHours?.startIST || '10:00').split(':').map(Number);
   const [endHour, endMin] = (mentor.workingHours?.endIST || '20:00').split(':').map(Number);
 
+  // Check if working hours span across midnight (e.g. 16:00 to 02:00)
+  if (endHour < startHour || (endHour === startHour && endMin < startMin)) {
+    const startMins = startHour * 60 + startMin;
+    const endMins = endHour * 60 + endMin;
+    const slotStartMins = startDt.hour * 60 + startDt.minute;
+    const slotEndMins = endDt.hour * 60 + endDt.minute + (endDt.hasSame(startDt, 'day') ? 0 : 24 * 60);
+
+    // Case 1: Slot starts on or after startHour today (e.g. 16:00 to 23:59)
+    if (slotStartMins >= startMins) {
+      return slotEndMins <= (endMins + 24 * 60);
+    }
+    // Case 2: Slot starts in early morning (00:00 to 02:00)
+    if (slotStartMins < endMins) {
+      return slotEndMins <= endMins && startDt.hasSame(endDt, 'day');
+    }
+    return false;
+  }
+
   const workStartDt = startDt.set({ hour: startHour, minute: startMin, second: 0, millisecond: 0 });
   const workEndDt = startDt.set({ hour: endHour, minute: endMin, second: 0, millisecond: 0 });
 
   // Appointment must start at or after workStart AND end at or before workEnd on the same mentor date
   return startDt >= workStartDt && endDt <= workEndDt && startDt.hasSame(endDt, 'day');
 };
+
 
 /**
  * Checks if a mentor has already reached their maximum daily demo class limit for a given IST calendar day.

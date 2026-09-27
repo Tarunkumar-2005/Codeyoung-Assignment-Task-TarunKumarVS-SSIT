@@ -1,54 +1,78 @@
 import React from 'react';
+import CodeyoungLogo from './CodeyoungLogo';
 import { getAvailableTimezoneOptions } from '../utils/timezones';
 import { Globe, Clock, Sparkles } from 'lucide-react';
 import { DateTime } from 'luxon';
 
-export default function Header({ selectedTimezone, onTimezoneChange, onReset }) {
+export default function Header({ 
+  selectedTimezone, 
+  onTimezoneChange, 
+  onReset, 
+  onStartBooking, 
+  currentStep,
+  viewMode,
+  onToggleViewMode,
+}) {
   const dtNow = DateTime.now().setZone(selectedTimezone);
-  const currentLocalTime = dtNow.toFormat('hh:mm:ss a');
+  const currentLocalTime = dtNow.toFormat('hh:mm a');
   const currentZoneAbbr = dtNow.toFormat('ZZZZ');
   const timezoneOptions = getAvailableTimezoneOptions();
 
   return (
-    <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 shadow-xs">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between py-3">
-        {/* Brand Logo */}
-        <button
-          onClick={onReset}
-          className="flex items-center gap-3 text-left focus:outline-none group cursor-pointer"
-        >
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-            CY
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5 font-bold text-slate-900 text-lg leading-tight">
-              Codeyoung
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
-                Trial Class
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 font-medium">1-on-1 Coding & Math Mentorship</p>
-          </div>
-        </button>
+    <header className="bg-white border-b border-slate-200/90 sticky top-0 z-50 shadow-xs">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+        {/* Left: Authentic Codeyoung Brand Logo with White Background */}
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={onReset}
+            className="flex items-center bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 p-1 cursor-pointer transition-transform hover:opacity-95"
+            aria-label="Codeyoung Home"
+          >
+            <CodeyoungLogo className="h-9 sm:h-10 w-auto" />
+          </button>
 
-        {/* Global Timezone Switcher with Clear Label */}
+          {/* View Switcher Pill */}
+          <div className="hidden md:flex items-center p-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-bold">
+            <button
+              type="button"
+              id="nav-parent-view"
+              onClick={() => onToggleViewMode('parent')}
+              className={`px-3 py-1.5 rounded-full transition-all cursor-pointer ${
+                viewMode === 'parent'
+                  ? 'bg-white text-slate-950 shadow-xs font-black'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Parent Booking
+            </button>
+            <button
+              type="button"
+              id="nav-mentor-view"
+              onClick={() => onToggleViewMode('mentor')}
+              className={`px-3 py-1.5 rounded-full transition-all cursor-pointer ${
+                viewMode === 'mentor'
+                  ? 'bg-white text-slate-950 shadow-xs font-black'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Mentor Timeline & Quotas
+            </button>
+          </div>
+        </div>
+
+        {/* Right: Clean Timezone Indicator & Primary Codeyoung Yellow CTA */}
         <div className="flex items-center gap-3">
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
-            <Clock className="w-3.5 h-3.5 text-blue-600" />
-            <span>Your Time:</span>
-            <span className="font-bold text-slate-900 font-mono">{currentLocalTime}</span>
-            <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-[10px]">
-              {currentZoneAbbr}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 border border-slate-200/90 rounded-xl px-2.5 py-1.5 transition-colors">
-            <Globe className="w-4 h-4 text-blue-600 shrink-0" />
+          {/* Timezone Selector Pill */}
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 hover:border-slate-300 transition-colors shadow-2xs">
+            <Globe className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span className="hidden sm:inline text-slate-500 font-medium">Zone:</span>
             <select
+              id="header-timezone-select"
               value={selectedTimezone}
               onChange={(e) => onTimezoneChange(e.target.value)}
-              className="text-xs font-semibold text-slate-800 bg-transparent focus:outline-none cursor-pointer pr-1"
-              title="Change your local timezone"
+              className="bg-transparent text-xs font-extrabold text-slate-900 focus:outline-none cursor-pointer pr-1"
+              title="Change your local timezone for scheduling"
             >
               {timezoneOptions.map((tz) => (
                 <option key={tz.id} value={tz.id}>
@@ -56,9 +80,34 @@ export default function Header({ selectedTimezone, onTimezoneChange, onReset }) 
                 </option>
               ))}
             </select>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 text-amber-950 font-black">
+              {currentZoneAbbr}
+            </span>
           </div>
+
+          {/* Primary Codeyoung Yellow Pill Button */}
+          {viewMode === 'mentor' ? (
+            <button
+              type="button"
+              onClick={() => onToggleViewMode('parent')}
+              className="bg-[#F9B233] hover:bg-[#F59E0B] active:bg-[#D97706] text-slate-950 font-black text-xs sm:text-sm px-4 sm:px-6 py-2.5 rounded-full shadow-sm hover:shadow-cy-yellow transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center gap-1.5"
+            >
+              <span>Back to Booking</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              id="header-book-trial-cta"
+              onClick={onStartBooking}
+              className="bg-[#F9B233] hover:bg-[#F59E0B] active:bg-[#D97706] text-slate-950 font-black text-xs sm:text-sm px-4 sm:px-6 py-2.5 rounded-full shadow-sm hover:shadow-cy-yellow transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center gap-1.5"
+            >
+              <Sparkles className="w-4 h-4 text-slate-950" />
+              <span>Book a FREE trial</span>
+            </button>
+          )}
         </div>
       </div>
     </header>
   );
 }
+

@@ -45,18 +45,84 @@ export const findConfirmedBookingsByDateIST = async (mentorDateIST) => {
 };
 
 /**
- * Persists a new trial class booking.
- * @param {Object} bookingData
+ * Finds all confirmed bookings for a specific mentor, optionally filtered by IST date.
+ * @param {string|mongoose.Types.ObjectId} mentorId
+ * @param {string} [mentorDateIST]
+ * @returns {Promise<Array>}
+ */
+export const findBookingsByMentor = async (mentorId, mentorDateIST) => {
+  const query = {
+    mentorId,
+    status: 'CONFIRMED',
+  };
+  if (mentorDateIST) {
+    query.mentorDateIST = mentorDateIST;
+  }
+  return Booking.find(query).populate('parentId', 'name email timezone').sort({ startTimeUTC: 1 }).lean();
+};
+
+/**
+ * Counts confirmed bookings for a parent on a specific local calendar date.
+ * @param {string|mongoose.Types.ObjectId} parentId
+ * @param {string} parentDateLocal - 'YYYY-MM-DD'
+ * @returns {Promise<number>}
+ */
+export const countParentDailyBookings = async (parentId, parentDateLocal) => {
+  return Booking.countDocuments({
+    parentId,
+    parentDateLocal,
+    status: 'CONFIRMED',
+  });
+};
+
+/**
+ * Checks if the parent already has an active confirmed booking at the exact same startTimeUTC.
+ * @param {string|mongoose.Types.ObjectId} parentId
+ * @param {Date|string} startTimeUTC
+ * @returns {Promise<Object|null>}
+ */
+export const findParentBookingAtTime = async (parentId, startTimeUTC) => {
+  const startUtcDate = startTimeUTC instanceof Date ? startTimeUTC : new Date(startTimeUTC);
+  return Booking.findOne({
+    parentId,
+    startTimeUTC: startUtcDate,
+    status: 'CONFIRMED',
+  }).lean();
+};
+
+/**
+ * Finds all confirmed bookings for a parent on a specific local date.
+ * @param {string|mongoose.Types.ObjectId} parentId
+ * @param {string} parentDateLocal
+ * @returns {Promise<Array>}
+ */
+export const findBookingsByParentAndDate = async (parentId, parentDateLocal) => {
+  return Booking.find({
+    parentId,
+    parentDateLocal,
+    status: 'CONFIRMED',
+  }).sort({ createdAt: 1 }).lean();
+};
+
+/**
+ * Creates a new booking record.
+ * @param {Object} data
  * @returns {Promise<Object>}
  */
-export const createBooking = async (bookingData) => {
-  const booking = new Booking(bookingData);
-  return booking.save();
+export const createBooking = async (data) => {
+  return Booking.create(data);
 };
 
 export default {
   countMentorDailyBookings,
   findConflictingBooking,
   findConfirmedBookingsByDateIST,
+  findBookingsByMentor,
+  countParentDailyBookings,
+  findParentBookingAtTime,
+  findBookingsByParentAndDate,
   createBooking,
 };
+
+
+

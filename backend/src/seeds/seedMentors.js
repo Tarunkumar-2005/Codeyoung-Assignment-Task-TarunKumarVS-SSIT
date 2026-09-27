@@ -63,7 +63,7 @@ export const INITIAL_MENTORS = [
     name: 'Rahul Nair',
     email: 'rahul.nair@codeyoung.com',
     timezone: 'Asia/Kolkata',
-    workingHours: { startIST: '14:00', endIST: '23:00' },
+    workingHours: { startIST: '16:00', endIST: '02:00' },
     maxDailyDemos: 2,
     isActive: true,
   },
@@ -79,10 +79,11 @@ export const INITIAL_MENTORS = [
     name: 'Siddharth Joshi',
     email: 'siddharth.joshi@codeyoung.com',
     timezone: 'Asia/Kolkata',
-    workingHours: { startIST: '12:00', endIST: '21:00' },
+    workingHours: { startIST: '16:00', endIST: '02:00' },
     maxDailyDemos: 2,
     isActive: true,
   },
+
 ];
 
 export const seedMentors = async () => {

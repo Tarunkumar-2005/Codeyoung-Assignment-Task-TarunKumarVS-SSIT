@@ -4,7 +4,7 @@ A full-stack trial-class appointment booking platform engineered to coordinate p
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+## Architecture & Tech Stack
 
 - **Frontend:** React, Vite, Tailwind CSS, Axios, React Router, Luxon
 - **Backend:** Node.js, Express.js (Layered Architecture: routes, controllers, services, repositories, models, middleware, utils)

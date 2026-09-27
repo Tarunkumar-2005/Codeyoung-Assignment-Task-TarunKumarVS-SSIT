@@ -33,8 +33,9 @@ export const createTrialBooking = async (payload) => {
     throw err;
   }
 
-  const { parent, startTime } = payload;
+  const { parent, startTime, mentorId, preferredMentorId, mentorName, strictMentor } = payload;
   const timezone = payload.timezone || parent?.timezone;
+  const targetMentorIdentifier = mentorId || preferredMentorId || mentorName;
 
   if (!parent || typeof parent !== 'object') {
     const err = new Error("Parent details are required under 'parent' object.");
@@ -100,9 +101,6 @@ export const createTrialBooking = async (payload) => {
   const endDt = DateTime.fromISO(startTimeUTC, { zone: 'utc' }).plus({ minutes: durationMinutes });
   const endTimeUTC = endDt.toUTC().toISO();
 
-  // 6. Find initial eligible mentors
-  const candidateMentors = await mentorAvailabilityService.getAvailableMentors(startTimeUTC, endTimeUTC);
-
   // Helper to fetch same-day alternative slots if no mentor is available
   const getSameDayAlternatives = async () => {
     try {
@@ -115,6 +113,47 @@ export const createTrialBooking = async (payload) => {
       return [];
     }
   };
+
+  // 6. Find initial eligible mentors
+  let candidateMentors = await mentorAvailabilityService.getAvailableMentors(startTimeUTC, endTimeUTC);
+
+  // If a specific mentor is requested, check / prioritize that mentor
+  if (targetMentorIdentifier) {
+    const matchingCandidateIndex = candidateMentors.findIndex((c) => {
+      const m = c.mentor;
+      const idStr = m._id ? m._id.toString() : '';
+      const emailStr = m.email || '';
+      const nameStr = m.name || '';
+      return (
+        idStr === targetMentorIdentifier.toString() ||
+        emailStr.toLowerCase() === targetMentorIdentifier.toString().toLowerCase() ||
+        nameStr.toLowerCase().includes(targetMentorIdentifier.toString().toLowerCase())
+      );
+    });
+
+    if (matchingCandidateIndex >= 0) {
+      // Put requested mentor at the front of candidate queue
+      const [matched] = candidateMentors.splice(matchingCandidateIndex, 1);
+      candidateMentors.unshift(matched);
+    } else if (strictMentor) {
+      // Requested mentor is specifically required but not available
+      const alternatives = await getSameDayAlternatives();
+      const err = new Error(`Instructor ${mentorName || 'The requested mentor'} is at maximum daily capacity or not available for this time. Please choose another date or instructor.`);
+      err.statusCode = 409;
+      err.errorCode = 'MENTOR_CAPACITY_REACHED';
+      err.details = {
+        message: `Instructor ${mentorName || 'The requested mentor'} is at maximum daily capacity. Please choose another date or instructor.`,
+        requestedSlot: {
+          startTimeUTC,
+          endTimeUTC,
+          parentLocalTime: timezoneService.formatForUser(startTimeUTC, timezone).fullFormatted,
+          parentTimezone: timezone,
+        },
+        suggestedAlternativeSlots: alternatives,
+      };
+      throw err;
+    }
+  }
 
   if (!candidateMentors || candidateMentors.length === 0) {
     const alternatives = await getSameDayAlternatives();
@@ -137,12 +176,58 @@ export const createTrialBooking = async (payload) => {
     throw err;
   }
 
-  // Upsert Parent record
+  // Determine parent's local calendar date strictly in parent's IANA timezone
+  const parentLocalProjection = timezoneService.formatForUser(startTimeUTC, timezone);
+  const parentDateLocal = parentLocalProjection.date; // 'YYYY-MM-DD'
+
+  // Upsert Parent record using normalized email
   const parentDoc = await parentRepository.findOrCreateParent({
     name: parentName,
     email: parentEmail,
     timezone,
   });
+
+  // Check 1: Prevent duplicate booking for the SAME parent at the EXACT SAME appointment time
+  const existingParentSlotBooking = await bookingRepository.findParentBookingAtTime(
+    parentDoc._id,
+    startTimeUTC
+  );
+  if (existingParentSlotBooking) {
+    const err = new Error('You already have a trial class booked for this time. Please choose another time.');
+    err.statusCode = 409;
+    err.errorCode = 'DUPLICATE_PARENT_BOOKING';
+    err.details = {
+      message: 'You already have a trial class booked for this time. Please choose another time.',
+      parentEmail: parentDoc.email,
+      parentDateLocal,
+      requestedSlot: {
+        startTimeUTC,
+        parentLocalTime: parentLocalProjection.fullFormatted,
+      },
+    };
+    throw err;
+  }
+
+  // Check 2: Enforce Parent Maximum Daily Quota (Max 2 trial classes per parent per local calendar day)
+  const MAX_PARENT_DAILY_BOOKINGS = 2;
+  const parentDailyCount = await bookingRepository.countParentDailyBookings(
+    parentDoc._id,
+    parentDateLocal
+  );
+
+  if (parentDailyCount >= MAX_PARENT_DAILY_BOOKINGS) {
+    const err = new Error('You have reached the maximum of 2 trial classes for today. Please choose another date.');
+    err.statusCode = 409;
+    err.errorCode = 'PARENT_DAILY_LIMIT_REACHED';
+    err.details = {
+      message: 'You have reached the maximum of 2 trial classes for today. Please choose another date.',
+      parentEmail: parentDoc.email,
+      parentDateLocal,
+      currentBookingsCount: parentDailyCount,
+      maxAllowed: MAX_PARENT_DAILY_BOOKINGS,
+    };
+    throw err;
+  }
 
   // 7, 8, 9, 10. Concurrency-safe candidate allocation loop
   let assignedBooking = null;
@@ -178,11 +263,32 @@ export const createTrialBooking = async (payload) => {
         startTimeUTC: new Date(startTimeUTC),
         endTimeUTC: new Date(endTimeUTC),
         parentTimezone: timezone,
+        parentDateLocal,
         mentorTimezone: mentor.timezone || 'Asia/Kolkata',
         mentorDateIST,
         meetingLink,
         status: 'CONFIRMED',
       });
+
+      // Post-creation race-condition safety check for parent daily limit
+      const activeParentBookings = await bookingRepository.countParentDailyBookings(
+        parentDoc._id,
+        parentDateLocal
+      );
+      if (activeParentBookings > MAX_PARENT_DAILY_BOOKINGS) {
+        // Query to check if this specific booking is the excess (> 2nd) one
+        const confirmedBookings = await bookingRepository.findBookingsByParentAndDate(
+          parentDoc._id,
+          parentDateLocal
+        );
+        if (confirmedBookings.length > MAX_PARENT_DAILY_BOOKINGS && confirmedBookings[confirmedBookings.length - 1]._id.toString() === newBooking._id.toString()) {
+          await newBooking.updateOne({ status: 'CANCELLED' });
+          const err = new Error('You have reached the maximum of 2 trial classes for today. Please choose another date.');
+          err.statusCode = 409;
+          err.errorCode = 'PARENT_DAILY_LIMIT_REACHED';
+          throw err;
+        }
+      }
 
       assignedBooking = newBooking;
       assignedMentor = mentor;
@@ -190,11 +296,19 @@ export const createTrialBooking = async (payload) => {
       break;
     } catch (dbError) {
       if (dbError.code === 11000) {
+        if (dbError.keyPattern?.parentId && dbError.keyPattern?.startTimeUTC) {
+          const err = new Error('You already have a trial class booked for this time. Please choose another time.');
+          err.statusCode = 409;
+          err.errorCode = 'DUPLICATE_PARENT_BOOKING';
+          throw err;
+        }
         continue;
       }
       throw dbError;
     }
   }
+
+
 
   // If all candidate mentors collided or were consumed concurrently
   if (!assignedBooking) {

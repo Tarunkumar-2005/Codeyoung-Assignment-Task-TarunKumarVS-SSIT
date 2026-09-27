@@ -40,8 +40,23 @@ export const submitBooking = async (bookingData) => {
   return apiClient.post('/bookings', bookingData);
 };
 
+export const getMentors = async (date) => {
+  return apiClient.get('/mentors', {
+    params: date ? { date } : {},
+  });
+};
+
+export const getMentorSchedule = async (mentorId, date) => {
+  return apiClient.get(`/mentors/${mentorId}`, {
+    params: date ? { date } : {},
+  });
+};
+
 export default {
   checkHealth,
   fetchAvailableSlots,
   submitBooking,
+  getMentors,
+  getMentorSchedule,
 };
+

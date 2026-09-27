@@ -146,3 +146,29 @@ npm test
 ```
 *(All 51 unit, integration, concurrency, and timezone tests run against Node's built-in test runner).*
 
+---
+
+## 🔒 Concurrency & Double-Booking Strategy
+
+When multiple parents submit booking requests for the same time slot at the exact same millisecond, the system prevents double-booking through a two-tier mechanism:
+
+1. **Database-Level Compound Unique Index:**
+   ```javascript
+   BookingSchema.index(
+     { mentorId: 1, startTimeUTC: 1 },
+     { unique: true, partialFilterExpression: { status: 'CONFIRMED' } }
+   );
+   ```
+   This guarantees that MongoDB will reject duplicate write attempts on `{ mentorId, startTimeUTC }` with error code `11000`.
+
+2. **Candidate Fallback Allocation Loop:**
+   If a mentor candidate suffers an atomic `11000` write conflict due to a simultaneous competing request, the booking service automatically catches the collision and allocates the next available candidate mentor in the fleet rather than failing the parent's booking request.
+
+---
+
+## 📌 Known Limitations & Trade-Offs
+
+- **No Multi-Document Distributed Transactions:** Multi-document ACID transactions in MongoDB require a replica set topology. The standalone database index + fallback loop approach was chosen to ensure zero external replica-set configuration requirements during local evaluation while guaranteeing single-mentor uniqueness.
+- **In-Memory Candidate Evaluation:** Daily quotas and availability are evaluated against MongoDB indexed queries. For ultra-high scale (10,000+ bookings/sec), a distributed Redis lock or distributed queue would be the next evolutionary step.
+- **Dummy Video Provider:** Meeting links use `https://demo.codeyoung.local/class/<uuid>` without integrating external Zoom/Daily.co APIs, matching assignment requirements.
+

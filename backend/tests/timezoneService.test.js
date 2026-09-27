@@ -60,7 +60,7 @@ describe('TimezoneService', () => {
 
     describe('Europe/London (UK)', () => {
       it('should correctly convert during British Summer Time (BST: UTC+1 in October)', () => {
-        // Oct 01, 2026 is in BST (UTC+1)
+        // Oct 01, 2026 is in BST (UTC+1) 
         // 16:00 (4:00 PM) BST -> 15:00 UTC (3:00 PM UTC)
         const localTime = '2026-10-01T16:00:00';
         const utcIso = localTimeToUTC(localTime, 'Europe/London');
